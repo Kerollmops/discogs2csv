@@ -4,9 +4,11 @@ use std::{str, mem};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use smallstr::SmallString;
+use smallvec::SmallVec;
 use main_error::MainError;
 
 type SmallString64 = SmallString<[u8; 64]>;
+type SmallVec32<T> = SmallVec<[T; 32]>;
 type Scope = Vec<Vec<u8>>;
 
 #[derive(Default)]
@@ -14,7 +16,7 @@ struct Release {
     id: Option<SmallString64>,
     album: Option<SmallString64>,
     artist: Option<SmallString64>,
-    songs: Vec<SmallString64>,
+    songs: SmallVec32<SmallString64>,
 }
 
 fn main() -> Result<(), MainError> {

@@ -117,4 +117,5 @@ dependencies = [
  "main_error",
  "quick-xml",
  "smallstr",
+ "smallvec",
 ]
