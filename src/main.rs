@@ -4,7 +4,6 @@ use std::{str, mem};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use smallstr::SmallString;
-use smallvec::SmallVec;
 use main_error::MainError;
 
 type SmallString64 = SmallString<[u8; 64]>;
@@ -15,6 +14,7 @@ struct Release {
     id: Option<SmallString64>,
     album: Option<SmallString64>,
     artist: Option<SmallString64>,
+    songs: Vec<SmallString64>,
 }
 
 fn main() -> Result<(), MainError> {
@@ -23,7 +23,7 @@ fn main() -> Result<(), MainError> {
     reader.trim_text(true);
 
     let mut writer = csv::Writer::from_writer(io::stdout());
-    writer.write_record(&["id", "title", "artist"])?;
+    writer.write_record(&["id", "title", "album", "artist"])?;
 
     let mut count = 0;
     let mut buf = Vec::new();
@@ -39,8 +39,6 @@ fn main() -> Result<(), MainError> {
                     b"release" => {
                         release = Release::default();
                         if let Some(Ok(attribute)) = e.attributes().find(|a| a.as_ref().map_or(false, |a| a.key == b"id")) {
-                            count += 1;
-                            if count % 10000 == 0 { eprintln!("{} releases seen", count) }
                             release.id = Some(SmallString::from_str(str::from_utf8(&attribute.value)?));
                         }
                     }
@@ -56,8 +54,14 @@ fn main() -> Result<(), MainError> {
                 match e.name() {
                     b"release" => {
                         // end of release, we must write the csv line if complete
-                        if let Release { id: Some(id), album: Some(album), artist: Some(artist) } = mem::take(&mut release) {
-                            writer.write_record(&[id.as_str(), album.as_str(), artist.as_str()])?;
+                        if let Release { id: Some(id), album: Some(album), artist: Some(artist), songs } = mem::take(&mut release) {
+                            for title in songs {
+                                writer.write_record(&[
+                                    id.as_str(),
+                                    title.as_str(),
+                                    album.as_str(),
+                                    artist.as_str()])?;
+                            }
                         }
                     },
                     _ => (),
@@ -75,6 +79,12 @@ fn main() -> Result<(), MainError> {
                 if scope == [&b"releases"[..], b"release", b"artists", b"artist", b"name"] {
                     release.artist = Some(SmallString64::from_str(text));
                 }
+
+                if scope == [&b"releases"[..], b"release", b"tracklist", b"track", b"title"] {
+                    count += 1;
+                    if count % 10000 == 0 { eprintln!("{} songs seen", count) }
+                    release.songs.push(SmallString64::from_str(text));
+                }
             },
 
             Event::Eof => break,
@@ -82,6 +92,8 @@ fn main() -> Result<(), MainError> {
         }
         buf.clear();
     }
+
+    eprintln!("{} songs seen", count);
 
     writer.flush()?;
 
