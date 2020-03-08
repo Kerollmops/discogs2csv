@@ -57,7 +57,12 @@ fn main() -> Result<(), MainError> {
                     b"release" => {
                         // end of release, we must write the csv line if complete
                         if let Release { id: Some(id), album: Some(album), artist: Some(artist), songs } = mem::take(&mut release) {
-                            for title in songs {
+                            let id: usize = id.parse()?;
+
+                            for (i, title) in songs.into_iter().enumerate().take(100) {
+                                let id = id * 100 + i;
+                                let id = id.to_string();
+
                                 writer.write_record(&[
                                     id.as_str(),
                                     title.as_str(),
