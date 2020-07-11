@@ -1,22 +1,19 @@
 use std::io::{self, BufReader};
-use std::{str, mem};
+use std::mem;
 
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use smallstr::SmallString;
-use smallvec::SmallVec;
 use main_error::MainError;
 
 type SmallString64 = SmallString<[u8; 64]>;
-type SmallVec32<T> = SmallVec<[T; 32]>;
 type Scope = Vec<Vec<u8>>;
 
 #[derive(Default)]
-struct Release {
-    id: Option<SmallString64>,
-    album: Option<SmallString64>,
-    artist: Option<SmallString64>,
-    songs: SmallVec32<SmallString64>,
+struct Document {
+    title: Option<SmallString64>,
+    abstrac: Option<String>,
+    url: Option<String>,
 }
 
 fn main() -> Result<(), MainError> {
@@ -25,27 +22,17 @@ fn main() -> Result<(), MainError> {
     reader.trim_text(true);
 
     let mut writer = csv::Writer::from_writer(io::stdout());
-    writer.write_record(&["id", "title", "album", "artist"])?;
+    writer.write_record(&["title", "abstract", "url"])?;
 
     let mut count = 0;
     let mut buf = Vec::new();
     let mut scope = Scope::default();
-    let mut release = Release::default();
+    let mut document = Document::default();
 
     loop {
         match reader.read_event(&mut buf)? {
             Event::Start(e) => {
                 scope.push(e.name().to_owned());
-
-                match e.name() {
-                    b"release" => {
-                        release = Release::default();
-                        if let Some(Ok(attribute)) = e.attributes().find(|a| a.as_ref().map_or(false, |a| a.key == b"id")) {
-                            release.id = Some(SmallString::from_str(str::from_utf8(&attribute.value)?));
-                        }
-                    }
-                    _ => (),
-                }
             },
             Event::End(e) => {
                 // only pop if we entered in a scope
@@ -54,21 +41,13 @@ fn main() -> Result<(), MainError> {
                 }
 
                 match e.name() {
-                    b"release" => {
-                        // end of release, we must write the csv line if complete
-                        if let Release { id: Some(id), album: Some(album), artist: Some(artist), songs } = mem::take(&mut release) {
-                            let id: usize = id.parse()?;
-
-                            for (i, title) in songs.into_iter().enumerate().take(100) {
-                                let id = id * 100 + i;
-                                let id = id.to_string();
-
-                                writer.write_record(&[
-                                    id.as_str(),
-                                    title.as_str(),
-                                    album.as_str(),
-                                    artist.as_str()])?;
-                            }
+                    b"doc" => {
+                        // end of document, we must write the csv line if complete
+                        if let Document { title: Some(title), abstrac: Some(abstrac), url: Some(url), } = mem::take(&mut document) {
+                            writer.write_record(&[
+                                title.as_str(),
+                                abstrac.as_str(),
+                                url.as_str()])?;
                         }
                     },
                     _ => (),
@@ -79,18 +58,18 @@ fn main() -> Result<(), MainError> {
                 let unescaped = e.unescaped()?;
                 let text = reader.decode(&unescaped)?;
 
-                if scope == [&b"releases"[..], b"release", b"title"] {
-                    release.album = Some(SmallString64::from_str(text));
+                if scope == [&b"feed"[..], b"doc", b"title"] {
+                    document.title = Some(SmallString64::from_str(text));
                 }
 
-                if scope == [&b"releases"[..], b"release", b"artists", b"artist", b"name"] {
-                    release.artist = Some(SmallString64::from_str(text));
+                if scope == [&b"feed"[..], b"doc", b"url"] {
+                    document.url = Some(text.to_string());
                 }
 
-                if scope == [&b"releases"[..], b"release", b"tracklist", b"track", b"title"] {
+                if scope == [&b"feed"[..], b"doc", b"abstract"] {
                     count += 1;
-                    if count % 10000 == 0 { eprintln!("{} songs seen", count) }
-                    release.songs.push(SmallString64::from_str(text));
+                    if count % 100000 == 0 { eprintln!("{}k documents seen", count / 1000) }
+                    document.abstrac = Some(text.to_string());
                 }
             },
 
@@ -100,7 +79,7 @@ fn main() -> Result<(), MainError> {
         buf.clear();
     }
 
-    eprintln!("{} songs seen", count);
+    eprintln!("{} documents seen", count);
 
     writer.flush()?;
 
