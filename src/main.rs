@@ -16,6 +16,9 @@ struct Release {
     id: Option<SmallString64>,
     album: Option<SmallString64>,
     artist: Option<SmallString64>,
+    genre: Option<SmallString64>,
+    country: Option<SmallString64>,
+    released: Option<SmallString64>,
     songs: SmallVec32<SmallString64>,
 }
 
@@ -25,7 +28,7 @@ fn main() -> Result<(), MainError> {
     reader.trim_text(true);
 
     let mut writer = csv::Writer::from_writer(io::stdout());
-    writer.write_record(&["id", "title", "album", "artist"])?;
+    writer.write_record(&["id", "title", "album", "artist", "genre", "country", "released"])?;
 
     let mut count = 0;
     let mut buf = Vec::new();
@@ -56,7 +59,16 @@ fn main() -> Result<(), MainError> {
                 match e.name() {
                     b"release" => {
                         // end of release, we must write the csv line if complete
-                        if let Release { id: Some(id), album: Some(album), artist: Some(artist), songs } = mem::take(&mut release) {
+                        if let Release {
+                            id: Some(id),
+                            album: Some(album),
+                            artist: Some(artist),
+                            genre,
+                            country,
+                            released,
+                            songs,
+                        } = mem::take(&mut release)
+                        {
                             let id: usize = id.parse()?;
 
                             for (i, title) in songs.into_iter().enumerate().take(100) {
@@ -67,7 +79,11 @@ fn main() -> Result<(), MainError> {
                                     id.as_str(),
                                     title.as_str(),
                                     album.as_str(),
-                                    artist.as_str()])?;
+                                    artist.as_str(),
+                                    genre.as_deref().unwrap_or_default(),
+                                    country.as_deref().unwrap_or_default(),
+                                    released.as_deref().unwrap_or_default(),
+                                ])?;
                             }
                         }
                     },
@@ -81,6 +97,18 @@ fn main() -> Result<(), MainError> {
 
                 if scope == [&b"releases"[..], b"release", b"title"] {
                     release.album = Some(SmallString64::from_str(text));
+                }
+
+                if scope == [&b"releases"[..], b"release", b"genres", b"genre"] {
+                    release.genre = Some(SmallString64::from_str(text));
+                }
+
+                if scope == [&b"releases"[..], b"release", b"country"] {
+                    release.country = Some(SmallString64::from_str(text));
+                }
+
+                if scope == [&b"releases"[..], b"release", b"released"] {
+                    release.released = Some(SmallString64::from_str(text));
                 }
 
                 if scope == [&b"releases"[..], b"release", b"artists", b"artist", b"name"] {
