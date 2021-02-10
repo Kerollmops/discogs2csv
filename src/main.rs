@@ -19,7 +19,7 @@ struct Release {
     genre: Option<SmallString64>,
     country: Option<SmallString64>,
     released: Option<SmallString64>,
-    songs: SmallVec32<SmallString64>,
+    songs: SmallVec32<(SmallString64, Option<SmallString64>)>, // title, duration
 }
 
 fn main() -> Result<(), MainError> {
@@ -28,7 +28,7 @@ fn main() -> Result<(), MainError> {
     reader.trim_text(true);
 
     let mut writer = csv::Writer::from_writer(io::stdout());
-    writer.write_record(&["id", "title", "album", "artist", "genre", "country", "released"])?;
+    writer.write_record(&["id", "title", "album", "artist", "genre", "country", "released", "duration"])?;
 
     let mut count = 0;
     let mut buf = Vec::new();
@@ -71,7 +71,7 @@ fn main() -> Result<(), MainError> {
                         {
                             let id: usize = id.parse()?;
 
-                            for (i, title) in songs.into_iter().enumerate().take(100) {
+                            for (i, (title, duration)) in songs.into_iter().enumerate().take(100) {
                                 let id = id * 100 + i;
                                 let id = id.to_string();
 
@@ -83,6 +83,7 @@ fn main() -> Result<(), MainError> {
                                     genre.as_deref().unwrap_or_default(),
                                     country.as_deref().unwrap_or_default(),
                                     released.as_deref().unwrap_or_default(),
+                                    duration.as_deref().unwrap_or_default(),
                                 ])?;
                             }
                         }
@@ -118,7 +119,13 @@ fn main() -> Result<(), MainError> {
                 if scope == [&b"releases"[..], b"release", b"tracklist", b"track", b"title"] {
                     count += 1;
                     if count % 10000 == 0 { eprintln!("{} songs seen", count) }
-                    release.songs.push(SmallString64::from_str(text));
+                    release.songs.push((SmallString64::from_str(text), None));
+                }
+
+                if scope == [&b"releases"[..], b"release", b"tracklist", b"track", b"duration"] {
+                    if let Some((_title, duration)) = release.songs.last_mut() {
+                        *duration = Some(SmallString64::from_str(text));
+                    }
                 }
             },
 
