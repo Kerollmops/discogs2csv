@@ -42,8 +42,8 @@ fn main() -> Result<(), MainError> {
         "country",
         "released",
         "duration",
-        "released_timestamp",
-        "duration_float",
+        "released-timestamp",
+        "duration-float",
     ])?;
 
     let mut count = 0;

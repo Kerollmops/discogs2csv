@@ -1,8 +1,11 @@
 [package]
-name = "xml2csv"
+name = "discogs2csv"
+description = "Converts a Discogs releases dump into a CSV"
+documentation = "https://docs.rs/discogs2csv"
 version = "0.1.0"
 authors = ["Clément Renault <renault.cle@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 [dependencies]
 csv = "1.2.1"
